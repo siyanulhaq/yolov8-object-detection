@@ -10,7 +10,6 @@ Production-style real-time computer vision platform with live object detection, 
 ## Demo
 ![VisionAI Demo](docs/demo.gif)
 
-> Replace `docs/demo.gif` with your screen recording GIF.
 
 ## Key Features
 - Live MJPEG stream with YOLOv8 bounding boxes
