@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VisionAI — Real-Time Object Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #050810;
+    --panel: #0c1020;
+    --border: #1a2540;
+    --accent: #00f5a0;
+    --accent2: #00b4ff;
+    --accent3: #ff4d6d;
+    --text: #e0e8ff;
+    --muted: #4a5568;
+    --card: #0f1828;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,245,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,245,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,180,255,0.06) 0%, transparent 70%);
+    top: -200px; right: -200px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(0,245,160,0.3);
+  }
+
+  .logo h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo h1 span { color: var(--accent); }
+
+  .logo p {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,245,160,0.08);
+    border: 1px solid rgba(0,245,160,0.2);
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--accent);
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+  }
+
+  /* Video feed */
+  .video-section {
+    position: relative;
+  }
+
+  .video-wrapper {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+  }
+
+  .video-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Corner decorations */
+  .corner {
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: var(--accent);
+    border-style: solid;
+    z-index: 2;
+  }
+  .corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+  .video-overlay-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    padding: 20px 16px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .fps-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    background: rgba(0,245,160,0.1);
+    border: 1px solid rgba(0,245,160,0.2);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .model-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent2);
+    background: rgba(0,180,255,0.1);
+    border: 1px solid rgba(0,180,255,0.2);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  /* Screenshot button */
+  .snap-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 14px;
+    width: 100%;
+    justify-content: center;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .snap-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,245,160,0.3);
+  }
+
+  .snap-btn:active { transform: translateY(0); }
+
+  /* Sidebar */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .card-title {
+    font-size: 0.7rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* Current detections */
+  .detection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .detection-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .detection-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  .conf-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .conf-bar {
+    width: 60px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .conf-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .conf-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 20px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Top objects */
+  .top-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .top-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .top-rank {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    width: 16px;
+  }
+
+  .top-bar-wrap {
+    flex: 1;
+  }
+
+  .top-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+    text-transform: capitalize;
+  }
+
+  .top-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent2);
+  }
+
+  .top-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .top-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* Uptime */
+  .uptime-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--accent2);
+    text-align: center;
+    padding: 8px;
+    background: var(--panel);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* Screenshot counter */
+  .snap-counter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+
+  .snap-count-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.2rem;
+    color: var(--accent3);
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 0.82rem;
+  }
+
+  .range-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .range-wrap input[type="range"] {
+    width: 100%;
+    accent-color: #00f5a0;
+  }
+
+  .control-value {
+    font-family: 'Space Mono', monospace;
+    color: var(--accent);
+    font-size: 0.78rem;
+  }
+
+  /* Flash animation on screenshot */
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 999;
+    animation: flash 0.4s ease;
+  }
+
+  @keyframes flash {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--panel); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--card);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    z-index: 1000;
+    transform: translateY(100px);
+    transition: transform 0.3s ease;
+  }
+
+  .toast.show { transform: translateY(0); }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="flash-overlay"></div>
+<div class="toast" id="toast">📸 Screenshot saved!</div>
+
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🎯</div>
+      <div>
+        <h1>Vision<span>AI</span></h1>
+        <p>Real-Time Object Detection System</p>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="dot"></div>
+      LIVE · YOLOv8n · COCO-80
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <!-- Video -->
+    <div class="video-section">
+      <div class="video-wrapper">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <img src="/video" alt="Live Feed"/>
+        <div class="video-overlay-bar">
+          <span class="fps-badge">⚡ <span id="fps-val">0</span> FPS</span>
+          <span class="model-badge">YOLOv8 Nano · conf ≥ 50%</span>
+        </div>
+      </div>
+      <button class="snap-btn" onclick="takeSnapshot()">
+        📸 &nbsp; CAPTURE SNAPSHOT
+      </button>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Stats -->
+      <div class="card">
+        <div class="card-title">System Stats</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="total-det">0</div>
+            <div class="stat-label">Detections</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="snap-count">0</div>
+            <div class="stat-label">Snapshots</div>
+          </div>
+          <div class="stat-item" style="grid-column: span 2;">
+            <div class="uptime-display" id="uptime">0m 0s</div>
+            <div class="stat-label" style="margin-top:6px;">Uptime</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current detections -->
+      <div class="card">
+        <div class="card-title">Now Detecting</div>
+        <div class="detection-list" id="detection-list">
+          <div class="empty-state">// awaiting objects...</div>
+        </div>
+      </div>
+
+      <!-- Top objects -->
+      <div class="card">
+        <div class="card-title">Top Objects</div>
+        <div class="top-list" id="top-list">
+          <div class="empty-state">// no data yet</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="card">
+        <div class="card-title">Detection Controls</div>
+        <div class="range-wrap">
+          <div class="control-row">
+            <span>Confidence Threshold</span>
+            <span class="control-value" id="conf-label">50%</span>
+          </div>
+          <input type="range" min="5" max="95" value="50" id="conf-slider"/>
+          <div class="control-row">
+            <span>Auto-Screenshot Cooldown</span>
+            <span class="control-value" id="cooldown-label">5s</span>
+          </div>
+          <input type="range" min="1" max="60" value="5" id="cooldown-slider"/>
+          <div class="control-row" style="margin-bottom:0;">
+            <span>Auto Screenshot On Detection</span>
+            <input type="checkbox" id="auto-snap-toggle" checked />
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  let lastAlertEvents = 0;
+  let audioCtx = null;
+
+  function beepAlert() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.05;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.12);
+    } catch (e) {}
+  }
+
+  async function updateConfig(patch) {
+    try {
+      await fetch('/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+      });
+    } catch (e) {}
+  }
+
+  // Poll stats every 500ms
+  async function fetchStats() {
+    try {
+      const res = await fetch('/stats');
+      const data = await res.json();
+
+      document.getElementById('fps-val').textContent = data.fps;
+      document.getElementById('total-det').textContent = data.total_detections.toLocaleString();
+      document.getElementById('snap-count').textContent = data.screenshots;
+      document.getElementById('uptime').textContent = data.uptime;
+      document.getElementById('conf-slider').value = Math.round((data.confidence_threshold || 0.5) * 100);
+      document.getElementById('conf-label').textContent = `${Math.round((data.confidence_threshold || 0.5) * 100)}%`;
+      document.getElementById('cooldown-slider').value = Math.round(data.auto_screenshot_cooldown_sec || 5);
+      document.getElementById('cooldown-label').textContent = `${Math.round(data.auto_screenshot_cooldown_sec || 5)}s`;
+      document.getElementById('auto-snap-toggle').checked = !!data.auto_screenshot_enabled;
+
+      if (data.alert_events > lastAlertEvents) {
+        lastAlertEvents = data.alert_events;
+        beepAlert();
+        const toast = document.getElementById('toast');
+        toast.textContent = '🔔 Detection alert triggered';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1800);
+      }
+
+      // Current detections
+      const list = document.getElementById('detection-list');
+      const objects = data.current_objects;
+      if (Object.keys(objects).length === 0) {
+        list.innerHTML = '<div class="empty-state">// awaiting objects...</div>';
+      } else {
+        list.innerHTML = Object.entries(objects).map(([name, conf]) => `
+          <div class="detection-item">
+            <span class="detection-name">${name}</span>
+            <div class="conf-bar-wrap">
+              <div class="conf-bar">
+                <div class="conf-fill" style="width:${conf}%"></div>
+              </div>
+              <span class="conf-text">${conf}%</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Top objects
+      const topList = document.getElementById('top-list');
+      if (!data.top_objects || data.top_objects.length === 0) {
+        topList.innerHTML = '<div class="empty-state">// no data yet</div>';
+      } else {
+        const maxCount = data.top_objects[0][1];
+        topList.innerHTML = data.top_objects.map(([name, count], i) => `
+          <div class="top-item">
+            <span class="top-rank">#${i+1}</span>
+            <div class="top-bar-wrap">
+              <div class="top-label">
+                <span>${name}</span>
+                <span class="top-count">${count}</span>
+              </div>
+              <div class="top-bar">
+                <div class="top-fill" style="width:${(count/maxCount)*100}%"></div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch(e) {}
+  }
+
+  setInterval(fetchStats, 500);
+  fetchStats();
+
+  // Screenshot
+  async function takeSnapshot() {
+    const overlay = document.getElementById('flash-overlay');
+    overlay.className = 'flash';
+    setTimeout(() => overlay.className = '', 400);
+
+    await fetch('/screenshot');
+
+    const toast = document.getElementById('toast');
+    toast.textContent = '📸 Screenshot saved!';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  document.getElementById('conf-slider').addEventListener('input', (e) => {
+    document.getElementById('conf-label').textContent = `${e.target.value}%`;
+  });
+
+  document.getElementById('conf-slider').addEventListener('change', (e) => {
+    updateConfig({ confidence_threshold: Number(e.target.value) / 100 });
+  });
+
+  document.getElementById('auto-snap-toggle').addEventListener('change', (e) => {
+    updateConfig({ auto_screenshot_enabled: !!e.target.checked });
+  });
+
+  document.getElementById('cooldown-slider').addEventListener('input', (e) => {
+    document.getElementById('cooldown-label').textContent = `${e.target.value}s`;
+  });
+
+  document.getElementById('cooldown-slider').addEventListener('change', (e) => {
+    updateConfig({ auto_screenshot_cooldown_sec: Number(e.target.value) });
+  });
+</script>
+</body>
+</html>
