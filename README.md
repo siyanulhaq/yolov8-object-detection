@@ -1,6 +1,8 @@
-# VisionAI - Real-Time Object Detection Platform
+# VisionAI Object Detection Platform
 
-Production-style computer vision application that streams live detections to a browser dashboard, logs events for analytics, and exposes runtime controls for thresholding and auto-capture.
+Production-style real-time computer vision platform by Siyan Ul Haq that streams live detections to a browser dashboard, logs events for analytics, and exposes runtime controls for thresholding and auto-capture.
+
+GitHub Repository: https://github.com/siyanulhaq/yolov8-object-detection
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)
 ![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-purple?style=flat-square)
